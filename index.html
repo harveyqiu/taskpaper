@@ -25,6 +25,7 @@
       --toolbar-h:    46px;
       --line-height:  1.7;
       --font-size:    14px;
+      --indent-guide:  rgba(128, 128, 128, 0.13);
     }
     @media (prefers-color-scheme: dark) {
       :root {
@@ -94,9 +95,19 @@
       white-space: pre-wrap;
       word-break: break-word;
       outline: none;
-      background: transparent;
+      background-color: transparent;
+      background-image: repeating-linear-gradient(
+        to right,
+        transparent,
+        transparent calc(var(--tab-px, 28px) - 1px),
+        var(--indent-guide) calc(var(--tab-px, 28px) - 1px),
+        var(--indent-guide) var(--tab-px, 28px)
+      );
+      background-position: 32px 0;
+      background-size: auto 100%;
       color: var(--fg);
       caret-color: var(--accent);
+      tab-size: 4;
     }
     #editor::-webkit-scrollbar { width: 6px; }
     #editor::-webkit-scrollbar-track { background: transparent; }
@@ -756,7 +767,20 @@ editor.addEventListener('scroll', () => {
 // Window resize: re-render highlights
 window.addEventListener('resize', () => {
   if (State.searchQuery) scheduleHighlights();
+  updateTabWidth();
 });
+
+function updateTabWidth() {
+  const style = getComputedStyle(editor);
+  const probe = document.createElement('span');
+  probe.style.cssText = `position:absolute;visibility:hidden;white-space:pre;` +
+    `font-family:${style.fontFamily};font-size:${style.fontSize};tab-size:4;`;
+  probe.textContent = '\t';
+  document.body.appendChild(probe);
+  const w = probe.getBoundingClientRect().width;
+  document.body.removeChild(probe);
+  editor.style.setProperty('--tab-px', w + 'px');
+}
 
 // ============================================================
 // 13. 初始化
@@ -790,6 +814,7 @@ function importFile(file) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  updateTabWidth();
   loadFromStorage();
   editor.focus();
 
