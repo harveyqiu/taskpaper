@@ -122,12 +122,33 @@
       text-decoration: line-through;
       text-decoration-color: var(--fg-done);
     }
+    #editor > div.line-project-done {
+      font-weight: 700;
+      color: var(--fg-done);
+      text-decoration: line-through;
+      text-decoration-color: var(--fg-done);
+      margin-top: 0.4em;
+    }
+    #editor > div.line-project-done:first-child {
+      margin-top: 0;
+    }
     #editor > div.line-note {
       color: var(--fg-muted);
       font-style: italic;
     }
+    #editor > div.line-note-done {
+      color: var(--fg-done);
+      text-decoration: line-through;
+      text-decoration-color: var(--fg-done);
+      font-style: italic;
+    }
     #editor > div.line-blank {
       color: var(--fg);
+    }
+    #editor > div.line-blank-done {
+      color: var(--fg-done);
+      text-decoration: line-through;
+      text-decoration-color: var(--fg-done);
     }
     #editor > div.line-hidden {
       display: none !important;
@@ -331,17 +352,21 @@ function getTextNode(div) {
 // ============================================================
 function classifyLine(text) {
   if (text === '' || text === '\u200B') return 'blank';
-  // Project: no leading whitespace, ends with ':'
-  if (/^[^\t \n].*:\s*$/.test(text)) return 'project';
-  // Task (done or not): leading tab/4-spaces then '- '
-  const isTask = /^(\t|    )- /.test(text);
-  if (isTask) {
-    return /(?:^|\s)@done(?:\s|$)/.test(text) ? 'task-done' : 'task';
+  const isDone = /(?:^|\s)@done(?:\s|$)/.test(text);
+  // Project: no leading whitespace, ends with ':' (optionally followed by @done)
+  if (/^[^\t \n].*:(\s*@done)?\s*$/.test(text)) {
+    return isDone ? 'project-done' : 'project';
+  }
+  // Task: leading tab/4-spaces then '- '
+  if (/^(\t|    )- /.test(text)) {
+    return isDone ? 'task-done' : 'task';
   }
   // Note: any other leading whitespace
-  if (/^[\t ]/.test(text)) return 'note';
-  // Default
-  return 'blank';
+  if (/^[\t ]/.test(text)) {
+    return isDone ? 'note-done' : 'note';
+  }
+  // Top-level text (not a project)
+  return isDone ? 'blank-done' : 'blank';
 }
 
 function extractTags(text) {
@@ -456,14 +481,15 @@ function applyFilter() {
   for (const div of editor.children) {
     const baseClass = div.className.replace(' line-hidden', '').trim();
     let hide = false;
-    if (baseClass === 'line-project') {
+    const isProject = baseClass === 'line-project' || baseClass === 'line-project-done';
+    if (isProject) {
       hide = false;
     } else if (filter === 'all') {
       hide = false;
     } else if (filter === 'undone') {
-      hide = baseClass === 'line-task-done';
+      hide = baseClass.endsWith('-done');
     } else if (filter === 'done') {
-      hide = baseClass !== 'line-task-done';
+      hide = !baseClass.endsWith('-done');
     } else {
       // @tag filter
       const text = div.textContent;
@@ -556,8 +582,7 @@ function toggleDoneOnCurrentLine() {
   if (!lineDiv) return;
 
   const text = lineDiv.textContent;
-  // Only act on task lines
-  if (!/^(\t|    )- /.test(text)) return;
+  if (!text || text === '\u200B') return;
 
   const hasDone = /(?:^|\s)@done(?:\s|$)/.test(text);
   let newText;
