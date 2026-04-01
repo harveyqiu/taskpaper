@@ -122,12 +122,33 @@
       text-decoration: line-through;
       text-decoration-color: var(--fg-done);
     }
+    #editor > div.line-project-done {
+      font-weight: 700;
+      color: var(--fg-done);
+      text-decoration: line-through;
+      text-decoration-color: var(--fg-done);
+      margin-top: 0.4em;
+    }
+    #editor > div.line-project-done:first-child {
+      margin-top: 0;
+    }
     #editor > div.line-note {
       color: var(--fg-muted);
       font-style: italic;
     }
+    #editor > div.line-note-done {
+      color: var(--fg-done);
+      text-decoration: line-through;
+      text-decoration-color: var(--fg-done);
+      font-style: italic;
+    }
     #editor > div.line-blank {
       color: var(--fg);
+    }
+    #editor > div.line-blank-done {
+      color: var(--fg-done);
+      text-decoration: line-through;
+      text-decoration-color: var(--fg-done);
     }
     #editor > div.line-hidden {
       display: none !important;
@@ -238,6 +259,10 @@
       <button class="filter-btn" data-filter="undone">未完成</button>
       <button class="filter-btn" data-filter="done">已完成</button>
     </div>
+    <div id="toolbar-sep2"></div>
+    <button id="btn-export" class="filter-btn" title="导出 .taskpaper 文件">导出</button>
+    <button id="btn-import" class="filter-btn" title="导入 .taskpaper 文件">导入</button>
+    <input id="file-input" type="file" accept=".taskpaper,.txt" style="display:none">
   </div>
   <div id="editor-container">
     <div id="editor"
@@ -327,17 +352,21 @@ function getTextNode(div) {
 // ============================================================
 function classifyLine(text) {
   if (text === '' || text === '\u200B') return 'blank';
-  // Project: no leading whitespace, ends with ':'
-  if (/^[^\t \n].*:\s*$/.test(text)) return 'project';
-  // Task (done or not): leading tab/4-spaces then '- '
-  const isTask = /^(\t|    )- /.test(text);
-  if (isTask) {
-    return /(?:^|\s)@done(?:\s|$)/.test(text) ? 'task-done' : 'task';
+  const isDone = /(?:^|\s)@done(?:\s|$)/.test(text);
+  // Project: no leading whitespace, ends with ':' (optionally followed by @done)
+  if (/^[^\t \n].*:(\s*@done)?\s*$/.test(text)) {
+    return isDone ? 'project-done' : 'project';
+  }
+  // Task: leading tab/4-spaces then '- '
+  if (/^(\t|    )- /.test(text)) {
+    return isDone ? 'task-done' : 'task';
   }
   // Note: any other leading whitespace
-  if (/^[\t ]/.test(text)) return 'note';
-  // Default
-  return 'blank';
+  if (/^[\t ]/.test(text)) {
+    return isDone ? 'note-done' : 'note';
+  }
+  // Top-level text (not a project)
+  return isDone ? 'blank-done' : 'blank';
 }
 
 function extractTags(text) {
@@ -452,14 +481,15 @@ function applyFilter() {
   for (const div of editor.children) {
     const baseClass = div.className.replace(' line-hidden', '').trim();
     let hide = false;
-    if (baseClass === 'line-project') {
+    const isProject = baseClass === 'line-project' || baseClass === 'line-project-done';
+    if (isProject) {
       hide = false;
     } else if (filter === 'all') {
       hide = false;
     } else if (filter === 'undone') {
-      hide = baseClass === 'line-task-done';
+      hide = baseClass.endsWith('-done');
     } else if (filter === 'done') {
-      hide = baseClass !== 'line-task-done';
+      hide = !baseClass.endsWith('-done');
     } else {
       // @tag filter
       const text = div.textContent;
@@ -552,8 +582,7 @@ function toggleDoneOnCurrentLine() {
   if (!lineDiv) return;
 
   const text = lineDiv.textContent;
-  // Only act on task lines
-  if (!/^(\t|    )- /.test(text)) return;
+  if (!text || text === '\u200B') return;
 
   const hasDone = /(?:^|\s)@done(?:\s|$)/.test(text);
   let newText;
@@ -642,12 +671,48 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// Tab in editor → insert literal tab
+// Tab / Shift+Tab in editor
 editor.addEventListener('keydown', (e) => {
-  if (e.key === 'Tab') {
-    e.preventDefault();
-    document.execCommand('insertText', false, e.shiftKey ? '' : '\t');
+  if (e.key !== 'Tab') return;
+  e.preventDefault();
+  if (!e.shiftKey) {
+    document.execCommand('insertText', false, '\t');
+    return;
   }
+  // Shift+Tab: remove one level of indentation from current line
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const lineDiv = getLineDivFromNode(sel.getRangeAt(0).startContainer);
+  if (!lineDiv) return;
+  const text = lineDiv.textContent;
+  let removed = 0;
+  let newText;
+  if (text.startsWith('\t')) {
+    newText = text.slice(1);
+    removed = 1;
+  } else if (text.startsWith('    ')) {
+    newText = text.slice(4);
+    removed = 4;
+  } else {
+    return; // nothing to remove
+  }
+  const range    = sel.getRangeAt(0);
+  const textNode = getTextNode(lineDiv);
+  const offset   = (textNode && range.startContainer === textNode)
+    ? range.startOffset : 0;
+  lineDiv.textContent = newText || '';
+  if (!newText) lineDiv.innerHTML = '<br>';
+  const newTextNode = getTextNode(lineDiv);
+  if (newTextNode) {
+    const pos = Math.max(0, offset - removed);
+    const r   = document.createRange();
+    r.setStart(newTextNode, Math.min(pos, newTextNode.length));
+    r.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r);
+  }
+  syncEditorClasses();
+  scheduleAutoSave();
 });
 
 // Search input
@@ -696,9 +761,47 @@ window.addEventListener('resize', () => {
 // ============================================================
 // 13. 初始化
 // ============================================================
+// ============================================================
+// 14. 导出 / 导入
+// ============================================================
+function exportFile() {
+  const text = getPlainText();
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'tasks.taskpaper';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    loadContentIntoEditor(text);
+    localStorage.setItem(STORAGE_CONTENT, text);
+    State.tags = extractTags(text);
+    renderTagButtons(State.tags);
+    applyFilter();
+    if (State.searchQuery) scheduleHighlights();
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadFromStorage();
   editor.focus();
+
+  document.getElementById('btn-export').addEventListener('click', exportFile);
+  document.getElementById('btn-import').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+  document.getElementById('file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) importFile(file);
+    e.target.value = '';
+  });
   // Place cursor at end
   const sel = window.getSelection();
   if (sel && editor.lastChild) {
