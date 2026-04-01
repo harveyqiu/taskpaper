@@ -238,6 +238,10 @@
       <button class="filter-btn" data-filter="undone">未完成</button>
       <button class="filter-btn" data-filter="done">已完成</button>
     </div>
+    <div id="toolbar-sep2"></div>
+    <button id="btn-export" class="filter-btn" title="导出 .taskpaper 文件">导出</button>
+    <button id="btn-import" class="filter-btn" title="导入 .taskpaper 文件">导入</button>
+    <input id="file-input" type="file" accept=".taskpaper,.txt" style="display:none">
   </div>
   <div id="editor-container">
     <div id="editor"
@@ -696,9 +700,47 @@ window.addEventListener('resize', () => {
 // ============================================================
 // 13. 初始化
 // ============================================================
+// ============================================================
+// 14. 导出 / 导入
+// ============================================================
+function exportFile() {
+  const text = getPlainText();
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = 'tasks.taskpaper';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importFile(file) {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const text = e.target.result;
+    loadContentIntoEditor(text);
+    localStorage.setItem(STORAGE_CONTENT, text);
+    State.tags = extractTags(text);
+    renderTagButtons(State.tags);
+    applyFilter();
+    if (State.searchQuery) scheduleHighlights();
+  };
+  reader.readAsText(file, 'UTF-8');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   loadFromStorage();
   editor.focus();
+
+  document.getElementById('btn-export').addEventListener('click', exportFile);
+  document.getElementById('btn-import').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+  document.getElementById('file-input').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) importFile(file);
+    e.target.value = '';
+  });
   // Place cursor at end
   const sel = window.getSelection();
   if (sel && editor.lastChild) {
