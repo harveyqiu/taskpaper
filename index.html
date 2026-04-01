@@ -104,7 +104,8 @@
         var(--indent-guide) var(--tab-px, 28px)
       );
       background-position: 32px 0;
-      background-size: auto 100%;
+      background-size: var(--max-indent-px, 0px) 100%;
+      background-repeat: no-repeat;
       color: var(--fg);
       caret-color: var(--accent);
       tab-size: 4;
@@ -435,6 +436,7 @@ function syncEditorClasses() {
       div.className = cls + (hidden ? ' line-hidden' : '');
     }
   }
+  updateIndentGuides();
 }
 
 // ============================================================
@@ -780,6 +782,27 @@ function updateTabWidth() {
   const w = probe.getBoundingClientRect().width;
   document.body.removeChild(probe);
   editor.style.setProperty('--tab-px', w + 'px');
+  updateIndentGuides();
+}
+
+function getIndentLevel(text) {
+  let level = 0, i = 0;
+  while (i < text.length) {
+    if (text[i] === '\t') { level++; i++; }
+    else if (text.slice(i, i + 4) === '    ') { level++; i += 4; }
+    else break;
+  }
+  return level;
+}
+
+function updateIndentGuides() {
+  let maxLevel = 0;
+  for (const div of editor.children) {
+    const level = getIndentLevel(div.textContent);
+    if (level > maxLevel) maxLevel = level;
+  }
+  const tabPx = parseFloat(editor.style.getPropertyValue('--tab-px')) || 28;
+  editor.style.setProperty('--max-indent-px', (maxLevel * tabPx) + 'px');
 }
 
 // ============================================================
@@ -808,6 +831,7 @@ function importFile(file) {
     State.tags = extractTags(text);
     renderTagButtons(State.tags);
     applyFilter();
+    updateIndentGuides();
     if (State.searchQuery) scheduleHighlights();
   };
   reader.readAsText(file, 'UTF-8');
@@ -816,6 +840,7 @@ function importFile(file) {
 document.addEventListener('DOMContentLoaded', () => {
   updateTabWidth();
   loadFromStorage();
+  updateIndentGuides();
   editor.focus();
 
   document.getElementById('btn-export').addEventListener('click', exportFile);
