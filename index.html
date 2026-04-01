@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TaskPaper Lite</title>
+  <style>
+    /* === A: CSS 自定义属性 + 暗色模式 === */
+    :root {
+      --bg:           #ffffff;
+      --bg-toolbar:   #f5f5f5;
+      --bg-input:     #ffffff;
+      --fg:           #1a1a1a;
+      --fg-muted:     #777777;
+      --fg-done:      #aaaaaa;
+      --accent:       #0066cc;
+      --highlight:    rgba(255, 215, 0, 0.55);
+      --border:       #e0e0e0;
+      --btn-bg:       #ffffff;
+      --btn-fg:       #444444;
+      --btn-active-bg:#0066cc;
+      --btn-active-fg:#ffffff;
+      --font-editor:  'JetBrains Mono', 'Fira Mono', 'Cascadia Code', 'Consolas', 'Menlo', monospace;
+      --font-ui:      system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --toolbar-h:    46px;
+      --line-height:  1.7;
+      --font-size:    14px;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg:           #1e1e1e;
+        --bg-toolbar:   #252525;
+        --bg-input:     #2a2a2a;
+        --fg:           #d4d4d4;
+        --fg-muted:     #666666;
+        --fg-done:      #555555;
+        --accent:       #4dabf7;
+        --highlight:    rgba(255, 210, 0, 0.28);
+        --border:       #3a3a3a;
+        --btn-bg:       #2a2a2a;
+        --btn-fg:       #aaaaaa;
+        --btn-active-bg:#4dabf7;
+        --btn-active-fg:#1e1e1e;
+      }
+    }
+
+    /* === B: Reset / Base === */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0; height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--fg);
+    }
+
+    /* === C: 布局 === */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    #toolbar {
+      flex-shrink: 0;
+      height: var(--toolbar-h);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 14px;
+      background: var(--bg-toolbar);
+      border-bottom: 1px solid var(--border);
+      font-family: var(--font-ui);
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    #toolbar::-webkit-scrollbar { display: none; }
+
+    #editor-container {
+      position: relative;
+      flex: 1;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* === D: 编辑器 === */
+    #editor {
+      position: absolute;
+      inset: 0;
+      overflow-y: auto;
+      padding: 24px 32px 48px;
+      font-family: var(--font-editor);
+      font-size: var(--font-size);
+      line-height: var(--line-height);
+      white-space: pre-wrap;
+      word-break: break-word;
+      outline: none;
+      background: transparent;
+      color: var(--fg);
+      caret-color: var(--accent);
+    }
+    #editor::-webkit-scrollbar { width: 6px; }
+    #editor::-webkit-scrollbar-track { background: transparent; }
+    #editor::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Each line is a <div> child of #editor */
+    #editor > div {
+      min-height: calc(var(--font-size) * var(--line-height));
+    }
+    #editor > div.line-project {
+      font-weight: 700;
+      color: var(--fg);
+      margin-top: 0.4em;
+    }
+    #editor > div.line-project:first-child {
+      margin-top: 0;
+    }
+    #editor > div.line-task {
+      color: var(--fg);
+    }
+    #editor > div.line-task-done {
+      color: var(--fg-done);
+      text-decoration: line-through;
+      text-decoration-color: var(--fg-done);
+    }
+    #editor > div.line-note {
+      color: var(--fg-muted);
+      font-style: italic;
+    }
+    #editor > div.line-blank {
+      color: var(--fg);
+    }
+    #editor > div.line-hidden {
+      display: none !important;
+    }
+
+    /* === E: 高亮 Overlay === */
+    #highlight-overlay {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+    .hl-rect {
+      position: absolute;
+      background: var(--highlight);
+      border-radius: 2px;
+    }
+
+    /* === F: 工具栏元素 === */
+    #search-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+    #search-input {
+      width: 200px;
+      height: 28px;
+      padding: 0 8px;
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      background: var(--bg-input);
+      color: var(--fg);
+      font-family: var(--font-ui);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    #search-input:focus {
+      border-color: var(--accent);
+    }
+    #match-count {
+      font-size: 11px;
+      color: var(--fg-muted);
+      white-space: nowrap;
+      min-width: 48px;
+    }
+    #search-clear {
+      width: 22px; height: 22px;
+      border: none; background: none;
+      color: var(--fg-muted);
+      font-size: 13px;
+      cursor: pointer;
+      border-radius: 3px;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0; line-height: 1;
+    }
+    #search-clear:hover { color: var(--fg); background: var(--border); }
+
+    #toolbar-sep {
+      width: 1px; height: 20px;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+
+    #filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: nowrap;
+    }
+    .filter-btn {
+      height: 26px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      background: var(--btn-bg);
+      color: var(--btn-fg);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
+      flex-shrink: 0;
+    }
+    .filter-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .filter-btn.active {
+      background: var(--btn-active-bg);
+      color: var(--btn-active-fg);
+      border-color: var(--btn-active-bg);
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div id="toolbar">
+    <div id="search-wrapper">
+      <input id="search-input" type="text" placeholder="搜索… (Cmd+F)" autocomplete="off" autocorrect="off" spellcheck="false">
+      <span id="match-count"></span>
+      <button id="search-clear" title="清空搜索 (Esc)">✕</button>
+    </div>
+    <div id="toolbar-sep"></div>
+    <div id="filter-bar">
+      <button class="filter-btn active" data-filter="all">全部</button>
+      <button class="filter-btn" data-filter="undone">未完成</button>
+      <button class="filter-btn" data-filter="done">已完成</button>
+    </div>
+  </div>
+  <div id="editor-container">
+    <div id="editor"
+         contenteditable="true"
+         spellcheck="false"
+         autocorrect="off"
+         autocapitalize="off"
+         data-gramm="false"
+         data-gramm_editor="false"></div>
+    <div id="highlight-overlay" aria-hidden="true"></div>
+  </div>
+</div>
+<script>
+'use strict';
+
+// ============================================================
+// 1. 常量 & DEFAULT_CONTENT
+// ============================================================
+const STORAGE_CONTENT = 'taskpaper-lite:content';
+const STORAGE_FILTER  = 'taskpaper-lite:filter';
+
+const DEFAULT_CONTENT =
+`工作:
+\t- 写需求文档 @work @today
+\t- 发会议邮件 @work @done
+\t- 整理项目文档 @work
+\t备注：本周重点推进需求评审
+
+个人:
+\t- 买菜 @home @today
+\t- 读书 30 分钟 @home
+\t- 健身 @home @done
+
+`;
+
+// ============================================================
+// 2. State
+// ============================================================
+const State = {
+  filter:      'all',
+  searchQuery: '',
+  tags:        [],       // extracted @tag names (excluding @done)
+  saveTimer:   null,
+  hlTimer:     null,
+  isComposing: false,
+};
+
+// ============================================================
+// 3. DOM 引用
+// ============================================================
+const editor     = document.getElementById('editor');
+const overlay    = document.getElementById('highlight-overlay');
+const searchInput = document.getElementById('search-input');
+const matchCount = document.getElementById('match-count');
+const filterBar  = document.getElementById('filter-bar');
+
+// ============================================================
+// 4. 工具函数
+// ============================================================
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// Get the direct <div> child of #editor that contains a given node.
+function getLineDivFromNode(node) {
+  if (!node) return null;
+  let n = (node.nodeType === 3) ? node.parentElement : node;
+  while (n && n.parentElement !== editor) {
+    n = n.parentElement;
+  }
+  return (n && n.parentElement === editor) ? n : null;
+}
+
+// Get the first text node inside a div (create one if needed).
+function getTextNode(div) {
+  for (let c = div.firstChild; c; c = c.nextSibling) {
+    if (c.nodeType === 3) return c;
+  }
+  return null;
+}
+
+// ============================================================
+// 5. 解析器
+// ============================================================
+function classifyLine(text) {
+  if (text === '' || text === '\u200B') return 'blank';
+  // Project: no leading whitespace, ends with ':'
+  if (/^[^\t \n].*:\s*$/.test(text)) return 'project';
+  // Task (done or not): leading tab/4-spaces then '- '
+  const isTask = /^(\t|    )- /.test(text);
+  if (isTask) {
+    return /(?:^|\s)@done(?:\s|$)/.test(text) ? 'task-done' : 'task';
+  }
+  // Note: any other leading whitespace
+  if (/^[\t ]/.test(text)) return 'note';
+  // Default
+  return 'blank';
+}
+
+function extractTags(text) {
+  const tags = new Set();
+  const re = /(?:^|[\s])(@(?!done\b)[a-zA-Z0-9_\u4e00-\u9fa5-]+)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    tags.add(m[1]);
+  }
+  return Array.from(tags).sort();
+}
+
+// ============================================================
+// 6. 结构规范化
+// ============================================================
+function normalizeEditorStructure() {
+  // Wrap any bare text nodes or <br>s directly under editor into a <div>
+  const children = Array.from(editor.childNodes);
+  let changed = false;
+  for (const node of children) {
+    if (node.nodeType === 3 || node.nodeName === 'BR') {
+      const div = document.createElement('div');
+      editor.insertBefore(div, node);
+      div.appendChild(node);
+      changed = true;
+    }
+  }
+  // Ensure empty divs have a <br> placeholder
+  for (const div of editor.children) {
+    if (div.textContent === '' && !div.querySelector('br')) {
+      div.innerHTML = '<br>';
+    }
+  }
+  return changed;
+}
+
+// ============================================================
+// 7. DOM 同步：仅更新 className，不碰 textContent/innerHTML
+// ============================================================
+function getEditorLines() {
+  return Array.from(editor.children).map(d => d.textContent);
+}
+
+function getPlainText() {
+  return getEditorLines().join('\n');
+}
+
+function syncEditorClasses() {
+  normalizeEditorStructure();
+  for (const div of editor.children) {
+    const type  = classifyLine(div.textContent);
+    const cls   = 'line-' + type;
+    if (div.className.replace(' line-hidden', '') !== cls) {
+      const hidden = div.classList.contains('line-hidden');
+      div.className = cls + (hidden ? ' line-hidden' : '');
+    }
+  }
+}
+
+// ============================================================
+// 8. 存储
+// ============================================================
+function loadContentIntoEditor(text) {
+  const lines = text.split('\n');
+  // Remove trailing empty line if last line is empty
+  while (lines.length > 1 && lines[lines.length - 1] === '') lines.pop();
+  editor.innerHTML = lines
+    .map(line => {
+      const cls = 'line-' + classifyLine(line);
+      const content = escapeHtml(line);
+      return `<div class="${cls}">${content || '<br>'}</div>`;
+    })
+    .join('');
+}
+
+function loadFromStorage() {
+  const content = localStorage.getItem(STORAGE_CONTENT) || DEFAULT_CONTENT;
+  const filter  = localStorage.getItem(STORAGE_FILTER)  || 'all';
+  State.filter  = filter;
+  loadContentIntoEditor(content);
+  // Update filter buttons
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === filter);
+  });
+  // Extract and render tag buttons
+  State.tags = extractTags(content);
+  renderTagButtons(State.tags);
+  applyFilter();
+}
+
+function saveToStorage() {
+  const text = getPlainText();
+  localStorage.setItem(STORAGE_CONTENT, text);
+  // Refresh tag buttons if tags changed
+  const newTags = extractTags(text);
+  if (JSON.stringify(newTags) !== JSON.stringify(State.tags)) {
+    State.tags = newTags;
+    renderTagButtons(newTags);
+  }
+}
+
+function scheduleAutoSave() {
+  clearTimeout(State.saveTimer);
+  State.saveTimer = setTimeout(saveToStorage, 500);
+}
+
+// ============================================================
+// 9. 筛选
+// ============================================================
+function applyFilter() {
+  const filter = State.filter;
+  for (const div of editor.children) {
+    const baseClass = div.className.replace(' line-hidden', '').trim();
+    let hide = false;
+    if (baseClass === 'line-project') {
+      hide = false;
+    } else if (filter === 'all') {
+      hide = false;
+    } else if (filter === 'undone') {
+      hide = baseClass === 'line-task-done';
+    } else if (filter === 'done') {
+      hide = baseClass !== 'line-task-done';
+    } else {
+      // @tag filter
+      const text = div.textContent;
+      hide = !text.includes(filter);
+    }
+    if (hide) div.classList.add('line-hidden');
+    else      div.classList.remove('line-hidden');
+  }
+}
+
+function renderTagButtons(tags) {
+  // Remove old dynamic tag buttons
+  document.querySelectorAll('.filter-btn[data-tag]').forEach(b => b.remove());
+  // Add new ones
+  for (const tag of tags) {
+    const btn = document.createElement('button');
+    btn.className = 'filter-btn' + (State.filter === tag ? ' active' : '');
+    btn.dataset.filter = tag;
+    btn.dataset.tag    = tag;
+    btn.textContent    = tag;
+    filterBar.appendChild(btn);
+  }
+}
+
+// ============================================================
+// 10. 搜索高亮 Overlay
+// ============================================================
+function renderHighlights() {
+  overlay.innerHTML = '';
+  const query = State.searchQuery.trim();
+  if (!query) {
+    matchCount.textContent = '';
+    return;
+  }
+
+  const lowerQuery  = query.toLowerCase();
+  const queryLen    = query.length;
+  const editorRect  = editor.getBoundingClientRect();
+  const scrollTop   = editor.scrollTop;
+  const scrollLeft  = editor.scrollLeft;
+  let count = 0;
+
+  const range = document.createRange();
+  const frag  = document.createDocumentFragment();
+
+  for (const div of editor.children) {
+    if (div.classList.contains('line-hidden')) continue;
+    const textNode = getTextNode(div);
+    if (!textNode) continue;
+    const text      = textNode.textContent;
+    const lowerText = text.toLowerCase();
+    let idx = 0;
+    while ((idx = lowerText.indexOf(lowerQuery, idx)) !== -1) {
+      count++;
+      try {
+        range.setStart(textNode, idx);
+        range.setEnd(textNode, idx + queryLen);
+        const rects = range.getClientRects();
+        for (const r of rects) {
+          const el = document.createElement('div');
+          el.className = 'hl-rect';
+          el.style.top    = (r.top  - editorRect.top  + scrollTop)  + 'px';
+          el.style.left   = (r.left - editorRect.left + scrollLeft) + 'px';
+          el.style.width  = r.width  + 'px';
+          el.style.height = r.height + 'px';
+          frag.appendChild(el);
+        }
+      } catch (e) { /* skip */ }
+      idx += queryLen;
+    }
+  }
+
+  overlay.appendChild(frag);
+  matchCount.textContent = count > 0 ? `${count} 处` : '无匹配';
+}
+
+function scheduleHighlights() {
+  if (State.hlTimer) cancelAnimationFrame(State.hlTimer);
+  State.hlTimer = requestAnimationFrame(renderHighlights);
+}
+
+// ============================================================
+// 11. Cmd+D 切换完成状态
+// ============================================================
+function toggleDoneOnCurrentLine() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const range   = sel.getRangeAt(0);
+  const lineDiv = getLineDivFromNode(range.startContainer);
+  if (!lineDiv) return;
+
+  const text = lineDiv.textContent;
+  // Only act on task lines
+  if (!/^(\t|    )- /.test(text)) return;
+
+  const hasDone = /(?:^|\s)@done(?:\s|$)/.test(text);
+  let newText;
+  if (hasDone) {
+    newText = text.replace(/\s*@done/, '');
+  } else {
+    newText = text.trimEnd() + ' @done';
+  }
+
+  // Save cursor offset within this div's text node
+  const textNode = getTextNode(lineDiv);
+  const cursorOffset = (textNode && range.startContainer === textNode)
+    ? range.startOffset
+    : Math.min(range.startOffset, newText.length);
+
+  // Update text
+  lineDiv.textContent = newText || '';
+  if (!newText) lineDiv.innerHTML = '<br>';
+
+  // Restore cursor
+  const newTextNode = getTextNode(lineDiv);
+  if (newTextNode) {
+    const clampedOffset = Math.min(cursorOffset, newTextNode.length);
+    const newRange = document.createRange();
+    newRange.setStart(newTextNode, clampedOffset);
+    newRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(newRange);
+  }
+
+  syncEditorClasses();
+  applyFilter();
+  scheduleAutoSave();
+  if (State.searchQuery) scheduleHighlights();
+}
+
+// ============================================================
+// 12. 事件绑定
+// ============================================================
+
+// IME composition guard
+editor.addEventListener('compositionstart', () => { State.isComposing = true; });
+editor.addEventListener('compositionend',   () => {
+  State.isComposing = false;
+  syncEditorClasses();
+  applyFilter();
+  scheduleAutoSave();
+  if (State.searchQuery) scheduleHighlights();
+});
+
+// Input
+editor.addEventListener('input', () => {
+  if (State.isComposing) return;
+  syncEditorClasses();
+  applyFilter();
+  scheduleAutoSave();
+  if (State.searchQuery) scheduleHighlights();
+});
+
+// Paste: strip rich text, insert plain text
+editor.addEventListener('paste', (e) => {
+  e.preventDefault();
+  const text = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+  if (text) {
+    document.execCommand('insertText', false, text);
+  }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  const mod = e.metaKey || e.ctrlKey;
+
+  // Cmd+F → focus search
+  if (mod && e.key === 'f') {
+    e.preventDefault();
+    searchInput.focus();
+    searchInput.select();
+    return;
+  }
+
+  // Cmd+D → toggle done
+  if (mod && e.key === 'd') {
+    e.preventDefault();
+    toggleDoneOnCurrentLine();
+    return;
+  }
+});
+
+// Tab in editor → insert literal tab
+editor.addEventListener('keydown', (e) => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    document.execCommand('insertText', false, e.shiftKey ? '' : '\t');
+  }
+});
+
+// Search input
+searchInput.addEventListener('input', () => {
+  State.searchQuery = searchInput.value;
+  scheduleHighlights();
+});
+
+searchInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    searchInput.value = '';
+    State.searchQuery = '';
+    renderHighlights();
+    editor.focus();
+  }
+});
+
+document.getElementById('search-clear').addEventListener('click', () => {
+  searchInput.value = '';
+  State.searchQuery = '';
+  renderHighlights();
+  editor.focus();
+});
+
+// Filter buttons (event delegation)
+filterBar.addEventListener('click', (e) => {
+  const btn = e.target.closest('.filter-btn');
+  if (!btn) return;
+  State.filter = btn.dataset.filter;
+  localStorage.setItem(STORAGE_FILTER, State.filter);
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilter();
+});
+
+// Scroll: re-render highlights
+editor.addEventListener('scroll', () => {
+  if (State.searchQuery) scheduleHighlights();
+});
+
+// Window resize: re-render highlights
+window.addEventListener('resize', () => {
+  if (State.searchQuery) scheduleHighlights();
+});
+
+// ============================================================
+// 13. 初始化
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  loadFromStorage();
+  editor.focus();
+  // Place cursor at end
+  const sel = window.getSelection();
+  if (sel && editor.lastChild) {
+    const range = document.createRange();
+    range.selectNodeContents(editor.lastChild);
+    range.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+});
+</script>
+</body>
+</html>
