@@ -896,6 +896,83 @@ editor.addEventListener('keydown', (e) => {
   scheduleAutoSave();
 });
 
+// Cmd+] / Cmd+[ → indent / unindent current line(s)
+editor.addEventListener('keydown', (e) => {
+  if (!(e.metaKey || e.ctrlKey)) return;
+  if (e.key !== ']' && e.key !== '[') return;
+  e.preventDefault();
+
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const range    = sel.getRangeAt(0);
+  const startDiv = getLineDivFromNode(range.startContainer);
+  const endDiv   = getLineDivFromNode(range.endContainer);
+  if (!startDiv) return;
+
+  const isIndent    = e.key === ']';
+  const isMultiLine = !range.collapsed && startDiv !== endDiv;
+
+  if (!isMultiLine) {
+    const textNode = getTextNode(startDiv);
+    const text     = startDiv.textContent;
+    const offset   = (range.startContainer === textNode) ? range.startOffset : 0;
+    if (isIndent) {
+      startDiv.textContent = '\t' + text;
+      const tn = getTextNode(startDiv);
+      if (tn) { const r = document.createRange(); r.setStart(tn, offset + 1); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
+    } else {
+      let removed = 0;
+      if      (text.startsWith('\t'))   removed = 1;
+      else if (text.startsWith('    ')) removed = 4;
+      else return;
+      const newText = text.slice(removed);
+      startDiv.textContent = newText || '';
+      if (!newText) startDiv.innerHTML = '<br>';
+      const tn = getTextNode(startDiv);
+      if (tn) { const pos = Math.max(0, offset - removed); const r = document.createRange(); r.setStart(tn, Math.min(pos, tn.length)); r.collapse(true); sel.removeAllRanges(); sel.addRange(r); }
+    }
+    syncEditorClasses();
+    scheduleAutoSave();
+    return;
+  }
+
+  // Multi-line selection
+  const children = Array.from(editor.children);
+  const startIdx  = children.indexOf(startDiv);
+  const endIdx    = children.indexOf(endDiv);
+  if (startIdx < 0 || endIdx < 0) return;
+
+  const affected = children.slice(startIdx, endIdx + 1);
+  for (const div of affected) {
+    const text = div.textContent;
+    let newText;
+    if (isIndent) {
+      newText = '\t' + text;
+    } else {
+      if      (text.startsWith('\t'))   newText = text.slice(1);
+      else if (text.startsWith('    ')) newText = text.slice(4);
+      else                               newText = text;
+    }
+    if (newText !== text) {
+      div.textContent = newText || '';
+      if (!newText) div.innerHTML = '<br>';
+    }
+  }
+
+  const firstTn = getTextNode(affected[0]) || affected[0];
+  const lastDiv = affected[affected.length - 1];
+  const lastTn  = getTextNode(lastDiv);
+  const newSel  = document.createRange();
+  newSel.setStart(firstTn, 0);
+  if (lastTn) newSel.setEnd(lastTn, lastTn.length);
+  else        newSel.selectNodeContents(lastDiv);
+  sel.removeAllRanges();
+  sel.addRange(newSel);
+
+  syncEditorClasses();
+  scheduleAutoSave();
+});
+
 // Search input
 searchInput.addEventListener('input', () => {
   State.searchQuery = searchInput.value;
