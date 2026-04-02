@@ -44,6 +44,7 @@ The application is structured within a single `index.html` file:
 - `Cmd+F`: Focus search
 - `Cmd+D`: Toggle `@done` on selected task
 - `Tab` / `Shift+Tab`: Indent / unindent
+- `Cmd+]` / `Cmd+[`: Indent / unindent current line(s)
 - `Esc`: Clear search
 
 ## Key Implementation Notes
