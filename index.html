@@ -175,12 +175,12 @@
     #editor > div.line-note-done,
     #editor > div.line-project-done,
     #editor > div.line-blank-done { color: var(--fg-done) !important; }
-    /* @p0 tag → red */
-    #editor > div[data-ptags~="p0"] {
+    /* @p0 tag → red (done lines keep gray) */
+    #editor > div[data-ptags~="p0"]:not(.line-task-done):not(.line-note-done):not(.line-project-done):not(.line-blank-done) {
       color: #e03535 !important;
     }
     @media (prefers-color-scheme: dark) {
-      #editor > div[data-ptags~="p0"] {
+      #editor > div[data-ptags~="p0"]:not(.line-task-done):not(.line-note-done):not(.line-project-done):not(.line-blank-done) {
         color: #f87171 !important;
       }
     }
