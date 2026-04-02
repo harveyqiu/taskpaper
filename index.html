@@ -175,7 +175,7 @@
     #editor > div.line-note-done,
     #editor > div.line-project-done,
     #editor > div.line-blank-done { color: var(--fg-done) !important; }
-    /* @"p0" quoted tag → red */
+    /* @p0 tag → red */
     #editor > div[data-ptags~="p0"] {
       color: #e03535 !important;
     }
@@ -444,21 +444,18 @@ function classifyLine(text) {
 
 function extractTags(text) {
   const tags = new Set();
-  const reQuoted = /(?:^|[\s])(@"[^"]+")/g;
-  let m;
-  while ((m = reQuoted.exec(text)) !== null) {
-    tags.add(m[1]);
-  }
   const re = /(?:^|[\s])(@(?!done\b)[a-zA-Z0-9_\u4e00-\u9fa5-]+)/g;
+  let m;
   while ((m = re.exec(text)) !== null) {
     tags.add(m[1]);
   }
   return Array.from(tags).sort();
 }
 
-function extractQuotedTagNames(text) {
+// Extract tag names (without @) for data-ptags attribute used by CSS coloring
+function extractTagNames(text) {
   const names = [];
-  const re = /@"([^"]+)"/g;
+  const re = /(?:^|[\s])@((?!done\b)[a-zA-Z0-9_\u4e00-\u9fa5-]+)/g;
   let m;
   while ((m = re.exec(text)) !== null) {
     names.push(m[1]);
@@ -509,7 +506,7 @@ function syncEditorClasses() {
       const hidden = div.classList.contains('line-hidden');
       div.className = cls + (hidden ? ' line-hidden' : '');
     }
-    const ptags = extractQuotedTagNames(div.textContent);
+    const ptags = extractTagNames(div.textContent);
     if (ptags.length > 0) div.dataset.ptags = ptags.join(' ');
     else delete div.dataset.ptags;
   }
@@ -527,7 +524,7 @@ function loadContentIntoEditor(text) {
     .map(line => {
       const cls = 'line-' + classifyLine(line);
       const content = escapeHtml(line);
-      const ptags = extractQuotedTagNames(line);
+      const ptags = extractTagNames(line);
       const ptagAttr = ptags.length > 0 ? ` data-ptags="${ptags.join(' ')}"` : '';
       return `<div class="${cls}"${ptagAttr}>${content || '<br>'}</div>`;
     })
