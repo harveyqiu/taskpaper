@@ -162,6 +162,19 @@
       text-decoration: line-through;
       text-decoration-color: var(--fg-done);
     }
+    /* Deeper indentation levels (3+) get muted */
+    #editor > div[data-indent="3"],
+    #editor > div[data-indent="4"],
+    #editor > div[data-indent="5"],
+    #editor > div[data-indent="6"],
+    #editor > div[data-indent="7"],
+    #editor > div[data-indent="8"],
+    #editor > div[data-indent="9"] { color: var(--fg-muted); }
+    /* Done lines keep their done color regardless of indent */
+    #editor > div.line-task-done,
+    #editor > div.line-note-done,
+    #editor > div.line-project-done,
+    #editor > div.line-blank-done { color: var(--fg-done) !important; }
     #editor > div.line-hidden {
       display: none !important;
     }
@@ -960,6 +973,7 @@ function updateIndentGuides() {
   let maxLevel = 0;
   for (const div of editor.children) {
     const level = getIndentLevel(div.textContent);
+    div.dataset.indent = level;
     if (level > maxLevel) maxLevel = level;
   }
   const tabPx = parseFloat(editor.style.getPropertyValue('--tab-px')) || 28;
