@@ -175,6 +175,15 @@
     #editor > div.line-note-done,
     #editor > div.line-project-done,
     #editor > div.line-blank-done { color: var(--fg-done) !important; }
+    /* @p0 tag → red */
+    #editor > div[data-ptags~="p0"] {
+      color: #e03535 !important;
+    }
+    @media (prefers-color-scheme: dark) {
+      #editor > div[data-ptags~="p0"] {
+        color: #f87171 !important;
+      }
+    }
     #editor > div.line-hidden {
       display: none !important;
     }
@@ -443,6 +452,17 @@ function extractTags(text) {
   return Array.from(tags).sort();
 }
 
+// Extract tag names (without @) for data-ptags attribute used by CSS coloring
+function extractTagNames(text) {
+  const names = [];
+  const re = /(?:^|[\s])@((?!done\b)[a-zA-Z0-9_\u4e00-\u9fa5-]+)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    names.push(m[1]);
+  }
+  return names;
+}
+
 // ============================================================
 // 6. 结构规范化
 // ============================================================
@@ -486,6 +506,9 @@ function syncEditorClasses() {
       const hidden = div.classList.contains('line-hidden');
       div.className = cls + (hidden ? ' line-hidden' : '');
     }
+    const ptags = extractTagNames(div.textContent);
+    if (ptags.length > 0) div.dataset.ptags = ptags.join(' ');
+    else delete div.dataset.ptags;
   }
   updateIndentGuides();
 }
@@ -501,7 +524,9 @@ function loadContentIntoEditor(text) {
     .map(line => {
       const cls = 'line-' + classifyLine(line);
       const content = escapeHtml(line);
-      return `<div class="${cls}">${content || '<br>'}</div>`;
+      const ptags = extractTagNames(line);
+      const ptagAttr = ptags.length > 0 ? ` data-ptags="${ptags.join(' ')}"` : '';
+      return `<div class="${cls}"${ptagAttr}>${content || '<br>'}</div>`;
     })
     .join('');
 }
