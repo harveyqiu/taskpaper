@@ -2,6 +2,19 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Changelog Requirement
+
+**Every time a new feature is added, you MUST update `CHANGELOG.md`** in the project root with an entry describing the change. Use the following format:
+
+```
+## [Unreleased]
+
+### Added
+- Brief description of the new feature (YYYY-MM-DD)
+```
+
+If `CHANGELOG.md` does not exist, create it. Group entries under `## [Unreleased]` until a version is released. Use standard Keep a Changelog sections: `Added`, `Changed`, `Fixed`, `Removed`.
+
 ## Project Overview
 
 TaskPaper Lite is a browser-based task manager supporting the TaskPaper format. The repository contains two implementations:
