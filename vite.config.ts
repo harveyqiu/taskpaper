@@ -9,4 +9,11 @@ export default defineConfig({
     react(),
     tailwind(),
   ],
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test-setup.ts'],
+    css: false,
+    exclude: ['node_modules', 'dist', 'e2e/**'],
+  },
 })
