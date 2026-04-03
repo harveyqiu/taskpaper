@@ -175,18 +175,83 @@
     #editor > div.line-note-done,
     #editor > div.line-project-done,
     #editor > div.line-blank-done { color: var(--fg-done) !important; }
-    /* @p0 tag → red */
-    #editor > div[data-ptags~="p0"] {
-      color: #e03535 !important;
-    }
-    @media (prefers-color-scheme: dark) {
-      #editor > div[data-ptags~="p0"] {
-        color: #f87171 !important;
-      }
-    }
+    /* tag colors injected dynamically via #tag-color-styles */
     #editor > div.line-hidden {
       display: none !important;
     }
+
+    /* === tag color dot on filter buttons === */
+    .tag-color-dot {
+      display: inline-block;
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      margin-right: 4px;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+
+    /* === Tag color picker popover === */
+    #tag-color-picker {
+      position: fixed;
+      background: var(--bg-toolbar);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+      z-index: 9999;
+      font-family: var(--font-ui);
+      font-size: 12px;
+      min-width: 180px;
+    }
+    .tcp-title {
+      font-weight: 600;
+      color: var(--fg);
+      font-size: 12px;
+    }
+    .tcp-swatches {
+      display: flex;
+      gap: 5px;
+      flex-wrap: wrap;
+    }
+    .tcp-swatch {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .tcp-swatch:hover { transform: scale(1.2); }
+    .tcp-swatch.selected { border-color: var(--fg); }
+    .tcp-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--fg-muted);
+    }
+    .tcp-row input[type="color"] {
+      width: 28px; height: 28px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 1px;
+      cursor: pointer;
+      background: none;
+    }
+    .tcp-clear {
+      height: 24px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: none;
+      color: var(--fg-muted);
+      font-family: var(--font-ui);
+      font-size: 12px;
+      cursor: pointer;
+      text-align: center;
+    }
+    .tcp-clear:hover { color: var(--fg); border-color: var(--fg-muted); }
 
     /* === E: 高亮 Overlay === */
     #highlight-overlay {
@@ -339,8 +404,9 @@
 // ============================================================
 // 1. 常量 & DEFAULT_CONTENT
 // ============================================================
-const STORAGE_CONTENT = 'taskpaper-lite:content';
-const STORAGE_FILTER  = 'taskpaper-lite:filter';
+const STORAGE_CONTENT    = 'taskpaper-lite:content';
+const STORAGE_FILTER     = 'taskpaper-lite:filter';
+const STORAGE_TAG_COLORS = 'taskpaper-lite:tag-colors';
 
 const DEFAULT_CONTENT =
 `工作:
@@ -363,6 +429,7 @@ const State = {
   filter:      'all',
   searchQuery: '',
   tags:        [],       // extracted @tag names (excluding @done)
+  tagColors:   {},       // { tagName: cssColor } e.g. { p0: '#e03535' }
   matches:     [],       // search match positions [{textNode, start, end}]
   matchIndex:  -1,       // current highlighted match (-1 = none)
   saveTimer:   null,
@@ -461,6 +528,99 @@ function extractTagNames(text) {
     names.push(m[1]);
   }
   return names;
+}
+
+// ============================================================
+// 5b. 标签颜色
+// ============================================================
+const TAG_COLOR_PRESETS = ['#e03535','#f97316','#eab308','#22c55e','#3b82f6','#a855f7','#ec4899','#64748b'];
+
+// <style> element for dynamic tag color rules (created in DOMContentLoaded)
+let tagColorStyle;
+
+function loadTagColors() {
+  try {
+    const stored = localStorage.getItem(STORAGE_TAG_COLORS);
+    State.tagColors = stored ? JSON.parse(stored) : { p0: '#e03535' };
+  } catch (e) {
+    State.tagColors = { p0: '#e03535' };
+  }
+}
+
+function saveTagColors() {
+  localStorage.setItem(STORAGE_TAG_COLORS, JSON.stringify(State.tagColors));
+}
+
+function applyTagColorStyles() {
+  if (!tagColorStyle) return;
+  const notDone = ':not(.line-task-done):not(.line-note-done):not(.line-project-done):not(.line-blank-done)';
+  const rules = Object.entries(State.tagColors).map(([tag, color]) =>
+    `#editor > div[data-ptags~="${tag}"]${notDone} { color: ${color} !important; }`
+  );
+  tagColorStyle.textContent = rules.join('\n');
+}
+
+function setTagColor(tagName, color) {
+  if (color) State.tagColors[tagName] = color;
+  else delete State.tagColors[tagName];
+  saveTagColors();
+  applyTagColorStyles();
+  renderTagButtons(State.tags);
+}
+
+function showTagColorPicker(tagName, anchorBtn) {
+  document.getElementById('tag-color-picker')?.remove();
+  const currentColor = State.tagColors[tagName] || '';
+  const picker = document.createElement('div');
+  picker.id = 'tag-color-picker';
+
+  const title = document.createElement('div');
+  title.className = 'tcp-title';
+  title.textContent = '@' + tagName + ' 颜色';
+  picker.appendChild(title);
+
+  const swatches = document.createElement('div');
+  swatches.className = 'tcp-swatches';
+  for (const c of TAG_COLOR_PRESETS) {
+    const s = document.createElement('div');
+    s.className = 'tcp-swatch' + (currentColor === c ? ' selected' : '');
+    s.style.background = c;
+    s.title = c;
+    s.addEventListener('click', (e) => { e.stopPropagation(); setTagColor(tagName, c); picker.remove(); });
+    swatches.appendChild(s);
+  }
+  picker.appendChild(swatches);
+
+  const row = document.createElement('div');
+  row.className = 'tcp-row';
+  const colorInput = document.createElement('input');
+  colorInput.type = 'color';
+  colorInput.value = currentColor || '#e03535';
+  colorInput.title = '自定义颜色';
+  colorInput.addEventListener('change', (e) => { e.stopPropagation(); setTagColor(tagName, colorInput.value); picker.remove(); });
+  const lbl = document.createElement('span');
+  lbl.textContent = '自定义颜色';
+  row.appendChild(colorInput);
+  row.appendChild(lbl);
+  picker.appendChild(row);
+
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'tcp-clear';
+  clearBtn.textContent = '清除颜色';
+  clearBtn.addEventListener('click', (e) => { e.stopPropagation(); setTagColor(tagName, null); picker.remove(); });
+  picker.appendChild(clearBtn);
+
+  document.body.appendChild(picker);
+  const rect = anchorBtn.getBoundingClientRect();
+  picker.style.top  = (rect.bottom + 4) + 'px';
+  picker.style.left = rect.left + 'px';
+  // Clamp to viewport
+  requestAnimationFrame(() => {
+    const pr = picker.getBoundingClientRect();
+    if (pr.right > window.innerWidth - 8)
+      picker.style.left = (window.innerWidth - pr.width - 8) + 'px';
+  });
+  setTimeout(() => document.addEventListener('click', () => picker.remove(), { once: true }), 0);
 }
 
 // ============================================================
@@ -595,11 +755,21 @@ function renderTagButtons(tags) {
   document.querySelectorAll('.filter-btn[data-tag]').forEach(b => b.remove());
   // Add new ones
   for (const tag of tags) {
+    const tagName = tag.replace(/^@/, '');
     const btn = document.createElement('button');
     btn.className = 'filter-btn' + (State.filter === tag ? ' active' : '');
     btn.dataset.filter = tag;
     btn.dataset.tag    = tag;
-    btn.textContent    = tag;
+    btn.title = '右键设置颜色';
+    const color = State.tagColors[tagName];
+    if (color) {
+      const dot = document.createElement('span');
+      dot.className = 'tag-color-dot';
+      dot.style.background = color;
+      btn.appendChild(dot);
+    }
+    btn.appendChild(document.createTextNode(tag));
+    btn.addEventListener('contextmenu', (e) => { e.preventDefault(); showTagColorPicker(tagName, btn); });
     filterBar.appendChild(btn);
   }
 }
@@ -1115,6 +1285,13 @@ function importFile(file) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Create dynamic style element for tag colors
+  tagColorStyle = document.createElement('style');
+  tagColorStyle.id = 'tag-color-styles';
+  document.head.appendChild(tagColorStyle);
+
+  loadTagColors();
+  applyTagColorStyles();
   updateTabWidth();
   loadFromStorage();
   updateIndentGuides();
