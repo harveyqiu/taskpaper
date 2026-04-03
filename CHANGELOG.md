@@ -8,6 +8,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Added
+- `@today` tag: marks a task as due today; lines with `@today` get a green left-accent bar and default green color (2026-04-03)
+- `@date(YYYY-MM-DD)` tag: marks a task with a specific date; lines with `@date(...)` get a blue left-accent bar (2026-04-03)
+- **日期视图** panel: click "📅 日期" in the toolbar to open a sidebar showing all dated tasks grouped into 过期 / 今天 / 未来 sections, sorted by date; click any task to jump to it in the editor (2026-04-03)
+- Date view auto-refreshes when content changes while the panel is open (2026-04-03)
+
 ---
 
 ## [0.3.0] - React Rewrite

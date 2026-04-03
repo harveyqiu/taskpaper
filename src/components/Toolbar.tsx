@@ -18,6 +18,8 @@ interface ToolbarProps {
   onImport: (file: File) => void
   onTagColorPickerOpen: (tagName: string, anchorRect: DOMRect) => void
   TAG_COLOR_PRESETS: string[]
+  showDateView: boolean
+  onDateViewToggle: () => void
 }
 
 export function Toolbar({
@@ -37,6 +39,8 @@ export function Toolbar({
   onExport,
   onImport,
   onTagColorPickerOpen,
+  showDateView,
+  onDateViewToggle,
 }: ToolbarProps) {
   const hasMatches = matchTotal > 0
 
@@ -235,6 +239,21 @@ export function Toolbar({
           ;(e.target as HTMLInputElement).value = ''
         }}
       />
+
+      {/* Separator */}
+      <div
+        style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }}
+      />
+
+      {/* Date view toggle */}
+      <button
+        id="btn-date-view"
+        className={`filter-btn${showDateView ? ' active' : ''}`}
+        title="按日期查看任务（支持 @today 和 @date(YYYY-MM-DD)）"
+        onClick={onDateViewToggle}
+      >
+        📅 日期
+      </button>
     </div>
   )
 }

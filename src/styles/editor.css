@@ -305,3 +305,15 @@ html, body {
   background: var(--border);
 }
 .search-nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* ============================================================
+   @today and @date(...) — subtle left accent on dated lines
+   (uses inset box-shadow to avoid affecting layout/indentation)
+   ============================================================ */
+.editor-pane > div[data-ptags~="today"]:not(.line-task-done):not(.line-note-done):not(.line-project-done):not(.line-blank-done) {
+  box-shadow: inset 2px 0 0 #22c55e;
+}
+/* Lines with @date tag (any @date(...) value parsed as tag name "date") */
+.editor-pane > div[data-ptags~="date"]:not(.line-task-done):not(.line-note-done):not(.line-project-done):not(.line-blank-done) {
+  box-shadow: inset 2px 0 0 #3b82f6;
+}

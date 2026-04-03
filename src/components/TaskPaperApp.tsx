@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   classifyLine,
   escapeHtml,
+  extractDate,
   extractTagNames,
   extractTags,
   getIndentLevel,
@@ -33,6 +34,12 @@ interface TagColorPickerState {
   anchorRect: DOMRect
 }
 
+interface DateTask {
+  text: string
+  date: string   // ISO YYYY-MM-DD
+  lineIndex: number
+}
+
 // ----------------------------------------------------------------
 // Component
 // ----------------------------------------------------------------
@@ -45,6 +52,8 @@ export function TaskPaperApp() {
   const [matchTotal, setMatchTotal] = useState(0)
   const [matchCurrent, setMatchCurrent] = useState(0) // 1-based, 0 = none
   const [tagColorPicker, setTagColorPicker] = useState<TagColorPickerState | null>(null)
+  const [showDateView, setShowDateView] = useState(false)
+  const [dateTasks, setDateTasks] = useState<DateTask[]>([])
 
   // DOM refs
   const editorRef = useRef<HTMLDivElement>(null)
@@ -64,6 +73,7 @@ export function TaskPaperApp() {
     hasBareNodes: false,
     scrollingToMatch: false,
     isComposing: false,
+    showDateView: false,
   })
 
   // ----------------------------------------------------------------
@@ -368,6 +378,15 @@ export function TaskPaperApp() {
         if (JSON.stringify(newTags) !== JSON.stringify(prev)) return newTags
         return prev
       })
+      if (imp.current.showDateView) {
+        const today = new Date().toISOString().split('T')[0]
+        const tasks: DateTask[] = []
+        Array.from(editor().children).forEach((div, i) => {
+          const date = extractDate(div.textContent ?? '', today)
+          if (date !== null) tasks.push({ text: (div.textContent ?? '').trim(), date, lineIndex: i })
+        })
+        setDateTasks(tasks)
+      }
     }, 500)
   }, [editor])
 
@@ -495,6 +514,42 @@ export function TaskPaperApp() {
       applyFilter(f)
     },
     [applyFilter],
+  )
+
+  // ----------------------------------------------------------------
+  // Date view
+  // ----------------------------------------------------------------
+  const handleDateViewToggle = useCallback(() => {
+    const next = !imp.current.showDateView
+    imp.current.showDateView = next
+    setShowDateView(next)
+    if (next) {
+      const today = new Date().toISOString().split('T')[0]
+      const tasks: DateTask[] = []
+      Array.from(editor().children).forEach((div, i) => {
+        const date = extractDate(div.textContent ?? '', today)
+        if (date !== null) tasks.push({ text: (div.textContent ?? '').trim(), date, lineIndex: i })
+      })
+      setDateTasks(tasks)
+    }
+  }, [editor])
+
+  const scrollToLine = useCallback(
+    (lineIndex: number) => {
+      const div = editor().children[lineIndex] as HTMLElement | undefined
+      if (!div) return
+      div.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      editor().focus()
+      const sel = window.getSelection()
+      if (sel) {
+        const range = document.createRange()
+        range.selectNodeContents(div)
+        range.collapse(false)
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+    },
+    [editor],
   )
 
   // ----------------------------------------------------------------
@@ -871,6 +926,11 @@ export function TaskPaperApp() {
   // ----------------------------------------------------------------
   // Render
   // ----------------------------------------------------------------
+  const today = new Date().toISOString().split('T')[0]
+  const overdueTasks = dateTasks.filter((t) => t.date < today)
+  const todayTasks = dateTasks.filter((t) => t.date === today)
+  const futureTasks = dateTasks.filter((t) => t.date > today)
+
   return (
     <div
       id="app"
@@ -895,8 +955,74 @@ export function TaskPaperApp() {
         onImport={importFile}
         onTagColorPickerOpen={handleTagColorPickerOpen}
         TAG_COLOR_PRESETS={TAG_COLOR_PRESETS}
+        showDateView={showDateView}
+        onDateViewToggle={handleDateViewToggle}
       />
-      <Editor editorRef={editorRef} overlayRef={overlayRef} />
+      <div className="flex flex-1 overflow-hidden">
+        <Editor editorRef={editorRef} overlayRef={overlayRef} />
+        {showDateView && (
+          <div
+            id="date-view"
+            style={{
+              width: 260,
+              flexShrink: 0,
+              borderLeft: '1px solid var(--border)',
+              background: 'var(--bg)',
+              overflowY: 'auto',
+              fontFamily: 'var(--font-ui)',
+              fontSize: 13,
+              color: 'var(--fg)',
+            }}
+          >
+            <div
+              style={{
+                padding: '8px 12px',
+                borderBottom: '1px solid var(--border)',
+                fontWeight: 600,
+                color: 'var(--fg-muted)',
+                fontSize: 11,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+              }}
+            >
+              日期视图
+            </div>
+            {dateTasks.length === 0 && (
+              <div style={{ padding: '16px 12px', color: 'var(--fg-muted)' }}>
+                无带日期的任务。
+                <br />
+                <span style={{ fontSize: 12 }}>
+                  使用 @today 或 @date(YYYY-MM-DD) 标记任务日期。
+                </span>
+              </div>
+            )}
+            {overdueTasks.length > 0 && (
+              <DateGroup
+                label="过期"
+                labelColor="#e03535"
+                tasks={overdueTasks}
+                onTaskClick={scrollToLine}
+              />
+            )}
+            {todayTasks.length > 0 && (
+              <DateGroup
+                label={`今天 · ${today}`}
+                labelColor="#22c55e"
+                tasks={todayTasks}
+                onTaskClick={scrollToLine}
+              />
+            )}
+            {futureTasks.length > 0 && (
+              <DateGroup
+                label="未来"
+                labelColor="#3b82f6"
+                tasks={futureTasks}
+                onTaskClick={scrollToLine}
+              />
+            )}
+          </div>
+        )}
+      </div>
       {tagColorPicker && (
         <TagColorPicker
           tagName={tagColorPicker.tagName}
@@ -907,6 +1033,69 @@ export function TaskPaperApp() {
           onClose={() => setTagColorPicker(null)}
         />
       )}
+    </div>
+  )
+}
+
+// ----------------------------------------------------------------
+// DateGroup: a section in the date view panel
+// ----------------------------------------------------------------
+function DateGroup({
+  label,
+  labelColor,
+  tasks,
+  onTaskClick,
+}: {
+  label: string
+  labelColor: string
+  tasks: { text: string; date: string; lineIndex: number }[]
+  onTaskClick: (lineIndex: number) => void
+}) {
+  return (
+    <div style={{ borderBottom: '1px solid var(--border)' }}>
+      <div
+        style={{
+          padding: '6px 12px 4px',
+          fontSize: 11,
+          fontWeight: 600,
+          color: labelColor,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+        }}
+      >
+        {label}
+      </div>
+      {tasks.map((t) => (
+        <button
+          key={t.lineIndex}
+          onClick={() => onTaskClick(t.lineIndex)}
+          title={`跳转到: ${t.text}`}
+          style={{
+            display: 'block',
+            width: '100%',
+            textAlign: 'left',
+            padding: '4px 12px 4px 20px',
+            background: 'none',
+            border: 'none',
+            color: 'var(--fg)',
+            fontSize: 12,
+            fontFamily: 'var(--font-editor)',
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: 1.5,
+          }}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLButtonElement).style.background = 'var(--border)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLButtonElement).style.background = 'none'
+          }}
+        >
+          {t.text}
+        </button>
+      ))}
     </div>
   )
 }

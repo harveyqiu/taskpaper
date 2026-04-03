@@ -5,7 +5,7 @@ const STORAGE_TAG_COLORS = 'taskpaper-lite:tag-colors'
 export const DEFAULT_CONTENT = `工作:
 \t- 写需求文档 @work @today
 \t- 发会议邮件 @work @done
-\t- 整理项目文档 @work
+\t- 整理项目文档 @work @date(2026-04-10)
 \t备注：本周重点推进需求评审
 
 个人:
@@ -25,7 +25,7 @@ const isClient = typeof window !== 'undefined'
 
 export function loadFromStorage(): StorageData {
   if (!isClient) {
-    return { content: DEFAULT_CONTENT, filter: 'all', tagColors: { p0: '#e03535' } }
+    return { content: DEFAULT_CONTENT, filter: 'all', tagColors: { p0: '#e03535', today: '#22c55e' } }
   }
   const content = localStorage.getItem(STORAGE_CONTENT) ?? DEFAULT_CONTENT
   const filter = localStorage.getItem(STORAGE_FILTER) ?? 'all'
@@ -43,13 +43,15 @@ export function saveFilter(filter: string): void {
   localStorage.setItem(STORAGE_FILTER, filter)
 }
 
+const DEFAULT_TAG_COLORS: Record<string, string> = { p0: '#e03535', today: '#22c55e' }
+
 export function loadTagColors(): Record<string, string> {
-  if (!isClient) return { p0: '#e03535' }
+  if (!isClient) return DEFAULT_TAG_COLORS
   try {
     const stored = localStorage.getItem(STORAGE_TAG_COLORS)
-    return stored ? JSON.parse(stored) : { p0: '#e03535' }
+    return stored ? JSON.parse(stored) : DEFAULT_TAG_COLORS
   } catch {
-    return { p0: '#e03535' }
+    return DEFAULT_TAG_COLORS
   }
 }
 
