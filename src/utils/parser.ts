@@ -67,6 +67,19 @@ export function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;')
 }
 
+/**
+ * Extract the date associated with a line.
+ * Returns an ISO date string (YYYY-MM-DD) if the line contains @today or
+ * @date(YYYY-MM-DD), otherwise null.
+ * @param text   Line text
+ * @param today  Today's ISO date string, e.g. "2026-04-03"
+ */
+export function extractDate(text: string, today: string): string | null {
+  if (/(?:^|\s)@today(?:\s|$)/.test(text)) return today
+  const m = /(?:^|\s)@date\((\d{4}-\d{2}-\d{2})\)/.exec(text)
+  return m ? m[1] : null
+}
+
 export function getIndentLevel(text: string): number {
   let level = 0
   let i = 0
