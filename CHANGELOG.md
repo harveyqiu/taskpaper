@@ -9,6 +9,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Added
+- **合并导入**：导入 `.taskpaper` 文件时，将内容追加到现有内容末尾，而非替换 (2026-04-04)
+- **自定义行高**：工具栏新增行高调节控件（− / + 按钮），范围 1.0–3.0，默认 1.7，设置持久化到 localStorage (2026-04-04)
 - `@today` tag: marks a task as due today; lines with `@today` get a green left-accent bar and default green color (2026-04-03)
 - `@date(YYYY-MM-DD)` tag: marks a task with a specific date; lines with `@date(...)` get a blue left-accent bar (2026-04-03)
 - **日期视图** panel: click "📅 日期" in the toolbar to open a sidebar showing all dated tasks grouped into 过期 / 今天 / 未来 sections, sorted by date; click any task to jump to it in the editor (2026-04-03)

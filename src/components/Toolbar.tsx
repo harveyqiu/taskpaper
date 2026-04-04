@@ -20,6 +20,8 @@ interface ToolbarProps {
   TAG_COLOR_PRESETS: string[]
   showDateView: boolean
   onDateViewToggle: () => void
+  lineHeight: number
+  onLineHeightChange: (value: number) => void
 }
 
 export function Toolbar({
@@ -41,6 +43,8 @@ export function Toolbar({
   onTagColorPickerOpen,
   showDateView,
   onDateViewToggle,
+  lineHeight,
+  onLineHeightChange,
 }: ToolbarProps) {
   const hasMatches = matchTotal > 0
 
@@ -254,6 +258,42 @@ export function Toolbar({
       >
         📅 日期
       </button>
+
+      {/* Separator */}
+      <div
+        style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }}
+      />
+
+      {/* Line height control */}
+      <div className="flex items-center gap-1 flex-shrink-0" title="行高">
+        <span style={{ fontSize: 11, color: 'var(--fg-muted)', whiteSpace: 'nowrap' }}>行高</span>
+        <button
+          className="search-nav-btn"
+          title="减小行高"
+          disabled={lineHeight <= 1.0}
+          onClick={() => onLineHeightChange(Math.max(1.0, Math.round((lineHeight - 0.1) * 10) / 10))}
+        >
+          −
+        </button>
+        <span
+          style={{
+            fontSize: 11,
+            color: 'var(--fg-muted)',
+            minWidth: 24,
+            textAlign: 'center',
+          }}
+        >
+          {lineHeight.toFixed(1)}
+        </span>
+        <button
+          className="search-nav-btn"
+          title="增大行高"
+          disabled={lineHeight >= 3.0}
+          onClick={() => onLineHeightChange(Math.min(3.0, Math.round((lineHeight + 0.1) * 10) / 10))}
+        >
+          +
+        </button>
+      </div>
     </div>
   )
 }
