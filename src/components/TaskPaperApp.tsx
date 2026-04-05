@@ -10,10 +10,13 @@ import {
 } from '../utils/parser'
 import {
   DEFAULT_CONTENT,
+  DEFAULT_LINE_HEIGHT,
   loadFromStorage,
+  loadLineHeight,
   loadTagColors,
   saveContent,
   saveFilter,
+  saveLineHeight,
   saveTagColors,
 } from '../utils/storage'
 import { Editor } from './Editor'
@@ -54,6 +57,7 @@ export function TaskPaperApp() {
   const [tagColorPicker, setTagColorPicker] = useState<TagColorPickerState | null>(null)
   const [showDateView, setShowDateView] = useState(false)
   const [dateTasks, setDateTasks] = useState<DateTask[]>([])
+  const [lineHeight, setLineHeight] = useState(DEFAULT_LINE_HEIGHT)
 
   // DOM refs
   const editorRef = useRef<HTMLDivElement>(null)
@@ -466,10 +470,15 @@ export function TaskPaperApp() {
     (file: File) => {
       const reader = new FileReader()
       reader.onload = (e) => {
-        const text = (e.target?.result as string) ?? ''
-        loadContentIntoEditor(text)
-        saveContent(text)
-        const newTags = extractTags(text)
+        const importedText = (e.target?.result as string) ?? ''
+        // Merge: append imported content after existing content
+        const existing = Array.from(editor().children)
+          .map((d) => d.textContent ?? '')
+          .join('\n')
+        const merged = existing.trimEnd() + '\n\n' + importedText.trimStart()
+        loadContentIntoEditor(merged)
+        saveContent(merged)
+        const newTags = extractTags(merged)
         setTags(newTags)
         applyFilter(imp.current.filter)
         updateIndentGuides()
@@ -477,7 +486,7 @@ export function TaskPaperApp() {
       }
       reader.readAsText(file, 'UTF-8')
     },
-    [loadContentIntoEditor, applyFilter, updateIndentGuides, scheduleHighlights],
+    [editor, loadContentIntoEditor, applyFilter, updateIndentGuides, scheduleHighlights],
   )
 
   // ----------------------------------------------------------------
@@ -533,6 +542,15 @@ export function TaskPaperApp() {
       setDateTasks(tasks)
     }
   }, [editor])
+
+  const handleLineHeightChange = useCallback(
+    (value: number) => {
+      setLineHeight(value)
+      saveLineHeight(value)
+      document.documentElement.style.setProperty('--line-height', String(value))
+    },
+    [],
+  )
 
   const scrollToLine = useCallback(
     (lineIndex: number) => {
@@ -619,6 +637,10 @@ export function TaskPaperApp() {
     imp.current.tagColors = stored.tagColors
     setFilter(stored.filter)
     setTagColors(stored.tagColors)
+
+    const storedLineHeight = loadLineHeight()
+    setLineHeight(storedLineHeight)
+    document.documentElement.style.setProperty('--line-height', String(storedLineHeight))
 
     loadContentIntoEditor(stored.content)
     applyTagColorStyles(stored.tagColors)
@@ -957,6 +979,8 @@ export function TaskPaperApp() {
         TAG_COLOR_PRESETS={TAG_COLOR_PRESETS}
         showDateView={showDateView}
         onDateViewToggle={handleDateViewToggle}
+        lineHeight={lineHeight}
+        onLineHeightChange={handleLineHeightChange}
       />
       <div className="flex flex-1 overflow-hidden">
         <Editor editorRef={editorRef} overlayRef={overlayRef} />

@@ -1,6 +1,9 @@
 const STORAGE_CONTENT = 'taskpaper-lite:content'
 const STORAGE_FILTER = 'taskpaper-lite:filter'
 const STORAGE_TAG_COLORS = 'taskpaper-lite:tag-colors'
+const STORAGE_LINE_HEIGHT = 'taskpaper-lite:line-height'
+
+export const DEFAULT_LINE_HEIGHT = 1.7
 
 export const DEFAULT_CONTENT = `工作:
 \t- 写需求文档 @work @today
@@ -58,4 +61,17 @@ export function loadTagColors(): Record<string, string> {
 export function saveTagColors(colors: Record<string, string>): void {
   if (!isClient) return
   localStorage.setItem(STORAGE_TAG_COLORS, JSON.stringify(colors))
+}
+
+export function loadLineHeight(): number {
+  if (!isClient) return DEFAULT_LINE_HEIGHT
+  const stored = localStorage.getItem(STORAGE_LINE_HEIGHT)
+  if (!stored) return DEFAULT_LINE_HEIGHT
+  const v = parseFloat(stored)
+  return isNaN(v) ? DEFAULT_LINE_HEIGHT : v
+}
+
+export function saveLineHeight(value: number): void {
+  if (!isClient) return
+  localStorage.setItem(STORAGE_LINE_HEIGHT, String(value))
 }
